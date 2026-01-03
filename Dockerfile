@@ -16,13 +16,28 @@ RUN \
 # 2. Rebuild the source code only when needed
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Accept build arguments for environment variables
+ARG NEXT_PUBLIC_FORMSPREE_ID
+ARG SPOTIFY_CLIENT_ID
+ARG SPOTIFY_CLIENT_SECRET
+ARG SPOTIFY_REFRESH_TOKEN
+ARG SPOTIFY_REDIRECT_URI
+
+# Set environment variables for the build
+ENV NEXT_PUBLIC_FORMSPREE_ID=$NEXT_PUBLIC_FORMSPREE_ID
+ENV SPOTIFY_CLIENT_ID=$SPOTIFY_CLIENT_ID
+ENV SPOTIFY_CLIENT_SECRET=$SPOTIFY_CLIENT_SECRET
+ENV SPOTIFY_REFRESH_TOKEN=$SPOTIFY_REFRESH_TOKEN
+ENV SPOTIFY_REDIRECT_URI=$SPOTIFY_REDIRECT_URI
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-# ENV NEXT_TELEMETRY_DISABLED 1
+# Disable telemetry during the build.
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
@@ -30,9 +45,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-# Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+# Disable telemetry during runtime.
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -48,8 +63,12 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
 # set hostname to localhost
-ENV HOSTNAME "0.0.0.0"
+ENV HOSTNAME="0.0.0.0"
+
+# Healthcheck to ensure the application is running
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
+  CMD node -e "const http=require('http');const req=http.get('http://localhost:3000', res=>process.exit(res.statusCode===200?0:1));req.on('error', ()=>process.exit(1));"
 
 CMD ["node", "server.js"]
